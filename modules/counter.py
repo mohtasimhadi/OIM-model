@@ -145,7 +145,7 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
 
         
 
-    def predict_video(self, video_path, save_dir, save_format = "mp4", display = 'custom', verbose = True, **display_args):
+    def predict_video(self, video_path, save_dir, save_format = "avi", display = 'custom', verbose = True, **display_args):
         
         cap = cv2.VideoCapture(video_path)
         vid_name = os.path.basename(video_path)

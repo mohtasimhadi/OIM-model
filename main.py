@@ -9,7 +9,7 @@ def parse_arguments():
     parser.add_argument('--video', type=str, default='videos', help="Path to the video file or folder containing videos")
     parser.add_argument('--conf', type=float, default=0.60, help="Confidence threshold (default: 0.60)")
     parser.add_argument('--save_dir', type=str, default='results', help="Directory to save the results (default: results)")
-    parser.add_argument('--save_format', type=str, default='mp4', help="Format to save the output video (default: mp4)")
+    parser.add_argument('--save_format', type=str, default='avi', help="Format to save the output video (default: mp4)")
     return parser.parse_args()
 
 def generate_colors(num_colors=80):
