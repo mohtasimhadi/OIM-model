@@ -156,7 +156,7 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
 
-        save_name = self.model_name + ' -- ' + vid_name.split('.')[0] + '.' + save_format
+        save_name = vid_name.split('.')[0] + '.' + save_format
         save_file = os.path.join(save_dir, save_name)
 
         if verbose:
