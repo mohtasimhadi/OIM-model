@@ -6,5 +6,6 @@ env
 *.h264
 *.ipynb
 runs
-data.yaml
+*.yaml
 result.yaml
+*.txt
