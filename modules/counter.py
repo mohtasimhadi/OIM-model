@@ -1,5 +1,5 @@
 import numpy as np
-import random
+import json
 import os
 import cv2
 import time
@@ -68,6 +68,8 @@ class YOLOv8_ObjectDetector:
 
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
+        if not os.path.isdir(save_dir+f"/{vid_name.split('.')[0]}"):
+            os.makedirs(save_dir+f"/{vid_name.split('.')[0]}")
 
         save_name = self.model_name + ' -- ' + vid_name.split('.')[0] + '.' + save_format
         save_file = os.path.join(save_dir, save_name)
@@ -121,8 +123,8 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
         self.trail_length = trail_length  # Length of the trail
         self.positions_history = {}  # Dictionary to store position history for each object
 
+    
     def predict_video(self, video_path, save_dir, save_format="avi", display='custom', verbose=True, **display_args):
-
         cap = cv2.VideoCapture(video_path)
         vid_name = os.path.basename(video_path)
         width = int(cap.get(3))
@@ -130,10 +132,11 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
 
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
+        if not os.path.isdir(save_dir+f"/{vid_name.split('.')[0]}"):
+            os.makedirs(save_dir+f"/{vid_name.split('.')[0]}")
 
         save_name = vid_name.split('.')[0] + '.' + save_format
         save_file = os.path.join(save_dir, save_name)
-
         yaml_save_file = os.path.join(save_dir, vid_name.split('.')[0] + '.yaml')
 
         if verbose:
@@ -148,11 +151,11 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
         if not cap.isOpened():
             print("Error opening video stream or file")
 
-        tracker = Sort(max_age=self.track_max_age, min_hits=self.track_min_hits, 
-                        iou_threshold=self.track_iou_threshold)
+        tracker = Sort(max_age=self.track_max_age, min_hits=self.track_min_hits, iou_threshold=self.track_iou_threshold)
         totalCount = []
         currentArray = np.empty((0, 5))
         annotations = []  # List to store annotations for each frame
+        object_confidences = {}  # Dictionary to track the highest confidence for each object
 
         while cap.isOpened():
             detections = np.empty((0, 5))
@@ -195,6 +198,12 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
                 if len(self.positions_history[obj_id]) > self.trail_length:
                     self.positions_history[obj_id].pop(0)
 
+                # Track highest confidence score for each object
+                if obj_id not in object_confidences:
+                    object_confidences[obj_id] = {'score': score, 'bbox': (x1, y1, x2, y2), 'frame': frame.copy()}
+                elif score > object_confidences[obj_id]['score']:
+                    object_confidences[obj_id] = {'score': score, 'bbox': (x1, y1, x2, y2), 'frame': frame.copy()}
+
                 # Draw the movement trail
                 if len(self.positions_history[obj_id]) > 1:
                     for i in range(len(self.positions_history[obj_id]) - 1):
@@ -236,6 +245,34 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
         cap.release()
         out.release()
 
+        # Save one frame per unique object based on the highest confidence level
+        saved_objects_count = 0
+        for obj_id, data in object_confidences.items():
+            x1, y1, x2, y2 = data['bbox']
+            
+            # Ensure bounding box coordinates are within image dimensions
+            x1 = max(0, min(x1, data['frame'].shape[1] - 1))
+            y1 = max(0, min(y1, data['frame'].shape[0] - 1))
+            x2 = max(x1 + 1, min(x2, data['frame'].shape[1]))
+            y2 = max(y1 + 1, min(y2, data['frame'].shape[0]))
+            
+            # Crop the object from the frame
+            cropped_object = data['frame'][y1:y2, x1:x2]
+            
+            # Check if the cropped image is not empty
+            if cropped_object.size == 0:
+                print(f"Skipped saving object {obj_id} due to empty crop.")
+                continue
+            
+            object_save_path = os.path.join(save_dir+f"/{vid_name.split('.')[0]}", f"object_{obj_id}.jpg")
+            
+            # Save the cropped image
+            success = cv2.imwrite(object_save_path, cropped_object)
+            if success:
+                saved_objects_count += 1
+            else:
+                print(f"Failed to save object {obj_id} at {object_save_path}")
+
         yaml_data = {
             'video': vid_name,
             'parameters': {
@@ -249,10 +286,12 @@ class YOLOv8_ObjectCounter(YOLOv8_ObjectDetector):
             },
             'total_count': len(totalCount),
             'counts': totalCount,
-            'annotations': annotations
+            'annotations': annotations,
+            'saved_objects_count': saved_objects_count
         }
 
         with open(yaml_save_file, 'w') as yaml_file:
             yaml.dump(yaml_data, yaml_file, default_flow_style=False)
 
+        print(f"Total saved objects: {saved_objects_count}")
         print(len(totalCount))
